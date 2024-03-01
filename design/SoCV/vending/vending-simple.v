@@ -250,7 +250,7 @@ always @ (*) begin
 end
 
 always @ (posedge clk) begin
-   if (!reset) begin
+   if (reset) begin
       coinOutNTD_50     <= 3'd0;
       coinOutNTD_10     <= 3'd0;
       coinOutNTD_5      <= 3'd0;
