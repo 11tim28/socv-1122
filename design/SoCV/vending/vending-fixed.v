@@ -124,6 +124,8 @@ reg    [1:0] serviceCoinType_w;// type of the coin for the service
 reg          exchangeReady_w;  // ready for exchange in BUSY
 reg    [7:0] initValue_w;      // initial value in vending machine
 
+reg          limit, limit_w;
+
 wire   [7:0] outExchange;      // the output exchange amount, for verification
 wire   [7:0] outItemValue;
 wire   [7:0] machineValue;
@@ -132,7 +134,7 @@ wire   [7:0] machineValue;
 /***** whether the change is right *****/
 assign p = initialized && (serviceTypeOut == `SERVICE_OFF) && (itemTypeOut == `ITEM_NONE) && (outExchange != inputValue); // catch the bug
 assign eat = initialized && (serviceTypeOut == `SERVICE_OFF) && (inputValue != (outExchange + outItemValue)); 
-assign balance = initialized && (serviceTypeOut == `SERVICE_OFF) && (machineValue != (initValue + outItemValue));
+assign balance = initialized && (serviceTypeOut == `SERVICE_OFF) && (machineValue != (initValue + outItemValue)) && limit;
 // assign count1   = countNTD_1;
 // assign count5   = countNTD_5;
 // assign count10  = countNTD_10;
@@ -174,6 +176,7 @@ always @ (*) begin
   serviceCoinType_w = serviceCoinType;
   exchangeReady_w   = exchangeReady;
   initValue_w       = initValue;
+  limit_w           = limit;
 
   case (serviceTypeOut)
     `SERVICE_ON   : begin
@@ -203,6 +206,10 @@ always @ (*) begin
                              (`VALUE_NTD_10 * {6'd0, countNTD_10}) + 
                              (`VALUE_NTD_5  * {6'd0, countNTD_5 }) + 
                              (`VALUE_NTD_1  * {6'd0, countNTD_1 });
+        limit_w           = (({1'b0, countNTD_50} + {2'd0, coinInNTD_50}) >= {1'b0, 3'b111}) ? 1'b0 : 
+                            (({1'b0, countNTD_10} + {2'd0, coinInNTD_10}) >= {1'b0, 3'b111}) ? 1'b0 :
+                            (({1'b0, countNTD_5 } + {2'd0, coinInNTD_5 }) >= {1'b0, 3'b111}) ? 1'b0 : 
+                            (({1'b0, countNTD_1 } + {2'd0, coinInNTD_1 }) >= {1'b0, 3'b111}) ? 1'b0 : 1'b1;
         serviceCoinType_w = `NTD_50;
         exchangeReady_w   = 1'b0;
       end
@@ -214,6 +221,7 @@ always @ (*) begin
       coinOutNTD_1_w    = 3'd0;
       itemTypeOut_w     = `ITEM_NONE;
       serviceTypeOut_w  = `SERVICE_ON;
+      limit_w           = 1'b1;
     end
     default       : begin  // check change for the item
       if (!exchangeReady) begin
@@ -314,6 +322,7 @@ always @ (posedge clk) begin
       exchangeReady     <= 1'b0;
       initialized       <= 1'b1;
       initValue         <= 8'd0;
+      limit             <= 1'b0;
    end
    else begin
       coinOutNTD_50     <= coinOutNTD_50_w;
@@ -332,6 +341,7 @@ always @ (posedge clk) begin
       exchangeReady     <= exchangeReady_w;
       initialized       <= initialized;
       initValue         <= initValue_w;
+      limit             <= limit_w;
    end
 end
 
