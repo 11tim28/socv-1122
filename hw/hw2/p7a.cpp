@@ -353,14 +353,14 @@ BddMgr::restrict(const BddNode& f, const BddNode &g){
       return f;
    }
    const int a = g.getLevel();
-   if(g.getLeftCofactor(a) == BddNode::_zero){
-      return restrict(f.getRightCofactor(a), g.getRightCofactor(a));
-   }
    if(g.getRightCofactor(a) == BddNode::_zero){
       return restrict(f.getLeftCofactor(a), g.getLeftCofactor(a));
+   }
+   if(g.getLeftCofactor(a) == BddNode::_zero){
+      return restrict(f.getRightCofactor(a), g.getRightCofactor(a));
    }
    if(f.getRightCofactor(a) == f.getLeftCofactor(a)){
       return restrict(f, (g.getRightCofactor(a) | g.getLeftCofactor(a)));
    }
-   return (~BddMgr::getSupport(a) & restrict(f.getLeftCofactor(a), g.getLeftCofactor(a))) | (BddMgr::getSupport(a) & restrict(f.getRightCofactor(a), g.getRightCofactor(a)));
+   return (~BddMgr::getSupport(a) & restrict(f.getRightCofactor(a), g.getRightCofactor(a))) | (BddMgr::getSupport(a) & restrict(f.getLeftCofactor(a), g.getLeftCofactor(a)));
 }
