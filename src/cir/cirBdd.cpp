@@ -56,7 +56,13 @@ void CirMgr::buildNtkBdd() {
     // Perform DFS traversal from DFF inputs, inout, and output gates.
     // Collect ordered nets to a GVNetVec
     // Construct BDDs in the DFS order
+
+    for(unsigned i = 0, n = getNumPOs(); i < n; ++i){
+        // cout << getPo(i)->getIn0Gate() << endl;
+        buildBdd(getPo(i));
+    }
 }
+
 
 void CirMgr::buildBdd(CirGate* gate) {
     GateList orderedGates;
@@ -64,7 +70,21 @@ void CirMgr::buildBdd(CirGate* gate) {
     CirGate::setGlobalRef();
     gate->genDfsList(orderedGates);
     assert(orderedGates.size() <= getNumTots());
-
     // TODO: build BDD for the specified net here
+
+    for(int i = 0; i < orderedGates.size(); ++i){
+        CirGate* gate_output = orderedGates[i];
+        if(gate_output->getType() == AIG_GATE){
+            CirGateV i0 = gate_output->getIn0();
+            CirGateV i1 = gate_output->getIn1();
+            BddNodeV a = bddMgrV->getBddNodeV(gate_output->getGid());
+            BddNodeV b = bddMgrV->getBddNodeV(i0.gateId());
+            BddNodeV c = bddMgrV->getBddNodeV(i1.gateId());    
+            if(i0.isInv()) b = ~b;
+            if(i1.isInv()) c = ~c;
+            a = b & c;
+            bddMgrV->addBddNodeV(gate_output->getGid(), a());
+        }
+    }
 }
 
