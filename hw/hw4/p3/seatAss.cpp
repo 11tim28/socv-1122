@@ -85,6 +85,89 @@ assignNot(SatSolver& sol, int m, int s, int n){
    sol.assumeProperty(gates[m*n+s]->getVar(), false);
 }
 
+void 
+lessThan(SatSolver& sol, int mi, int mj, int n){
+   // mi should not seat at n-1 seat
+   sol.assumeProperty(gates[mi*n+(n-1)]->getVar(), false);
+
+   for(int i = 0; i < n-1; ++i){
+      Var lastV = sol.newVar();
+      sol.addAigCNF(lastV, gates[mi*n+i]->getVar(), false, gates[mj*n+i+1]->getVar(), true);
+      for(int j = i+2; j < n; ++j){
+         Var newV = sol.newVar();
+         sol.addAigCNF(newV, lastV, false, gates[mj*n+j]->getVar(), true);
+         lastV = newV;
+      }
+      sol.assumeProperty(lastV, false);
+   }
+}
+
+void 
+adjacent(SatSolver& sol, int mi, int mj, int n){
+   for(int i = 0; i < n; ++i){
+      if(i == 0){
+         Var newV = sol.newVar();
+         sol.addAigCNF(newV, gates[mi*n+0]->getVar(), false, gates[mj*n+1]->getVar(), true);
+         sol.assumeProperty(newV, false);
+      }
+      else if(i == n-1){
+         Var newV = sol.newVar();
+         sol.addAigCNF(newV, gates[mi*n+n-1]->getVar(), false, gates[mj*n+n-2]->getVar(), true);
+         sol.assumeProperty(newV, false);
+      }
+      else{
+         Var newV1 = sol.newVar();
+         Var newV2 = sol.newVar();
+         sol.addAigCNF(newV1, gates[mi*n+i]->getVar(), false, gates[mj*n+i+1]->getVar(), true);
+         sol.addAigCNF(newV2, newV1, false, gates[mj*n+i-1]->getVar(), true);
+         sol.assumeProperty(newV2, false);
+      }
+   }
+}
+
+void 
+adjacentNot(SatSolver& sol, int mi, int mj, int n){
+   for(int i = 0; i < n; ++i){
+      if(i == 0){
+         Var newV = sol.newVar();
+         sol.addAigCNF(newV, gates[mi*n+0]->getVar(), false, gates[mj*n+1]->getVar(), false);
+         sol.assumeProperty(newV, false);
+      }
+      else if(i == n-1){
+         Var newV = sol.newVar();
+         sol.addAigCNF(newV, gates[mi*n+n-1]->getVar(), false, gates[mj*n+n-2]->getVar(), false);
+         sol.assumeProperty(newV, false);
+      }
+      else{
+         Var newV1 = sol.newVar();
+         Var newV2 = sol.newVar();
+         sol.addAigCNF(newV1, gates[mi*n+i]->getVar(), false, gates[mj*n+i+1]->getVar(), false);
+         sol.addAigCNF(newV2, newV1, false, gates[mj*n+i-1]->getVar(), false);
+         sol.assumeProperty(newV2, false);
+      }
+   }
+}
+
+void 
+reportResult(const SatSolver& sol, bool result, int n){
+   if(result){
+      cout << "Satisfiable assignment:" << endl;
+      for(int i = 0; i < n*n; ++i){
+         if(sol.getValue(gates[i]->getVar())){
+            if(i/n == n-1){
+               cout << i/n << "(" << i%n << ")" << endl;
+            }
+            else{
+               cout << i/n << "(" << i%n << "), ";
+            }
+         }
+      }
+   }
+   else{
+      cout << "No satisfiable assignment can be found." << endl;
+   }
+}
+
 
 int main(int argc, char **argv)
 {
@@ -106,6 +189,7 @@ int main(int argc, char **argv)
    string line;
    int N = -1;
    SatSolver sol;
+   bool result;
 
    while(getline(f, line)){
       if(N < 0){
@@ -121,12 +205,12 @@ int main(int argc, char **argv)
          s = stoi(line.substr(line.find(',') + 2, line.find(')') - line.find(',') - 2));
          if(line[6] == 'N'){
             // AssignNot
-            cout << m << s << endl;
+            // cout << m << s << endl;
             assignNot(sol, m, s, N);
          }
          else{
             // Assign
-            cout << m << s << endl;
+            // cout << m << s << endl;
             assign(sol, m, s, N);
          }
       }
@@ -135,7 +219,8 @@ int main(int argc, char **argv)
          mi = stoi(line.substr(line.find('(') + 1, line.find(',') - line.find('(') - 1));
          mj = stoi(line.substr(line.find(',') + 2, line.find(')') - line.find(',') - 2));
          // LessThan
-         cout << mi << mj << endl;
+         // cout << mi << mj << endl;
+         lessThan(sol, mi, mj, N);
       }
       else if(line[1] == 'd'){
          int mi, mj;
@@ -143,19 +228,23 @@ int main(int argc, char **argv)
          mj = stoi(line.substr(line.find(',') + 2, line.find(')') - line.find(',') - 2));
          if(line[6] == 'N'){
             // AdjacentNot
-            cout << mi << mj << endl;
+            // cout << mi << mj << endl;
+            adjacentNot(sol, mi, mj, N);
          }
          else{
             // Adjacent
-            cout << mi << mj << endl;
+            // cout << mi << mj << endl;
+            adjacent(sol, mi, mj, N);
          }
       }
       else{
          cerr << "INVALID CONSTRAINT SYNTAX !!!" << endl;
       }
-
-      // cout << line << endl;
    }
    f.close();
+
+   result = sol.assumpSolve();
+   reportResult(sol, result, N);
+
    return 0;
 }
