@@ -114,12 +114,52 @@ void SATMgr::itpUbmc(const CirGate *monitor, SatProofRes &pRes) {
     // PART I:
     // Build Initial State
     CirGate *I = buildInitState();
-    // PART II:
-    // Take care the first timeframe (i.e. Timeframe 0 )
-    //    Check if monitor is violated at timeframe 0
-    //    Build the whole timeframe 0 and map the var to latch net
-    //    Mark the added clauses ( up to now ) to onset
 
+    // PART II:
+
+    // uint32_t i = 0;
+    //    Take care the first timeframe (i.e. Timeframe 0 )
+    gvSatSolver->addBoundedVerifyData(I, 0);
+    gvSatSolver->assumeProperty(I, false, 0);
+
+    //    Check if monitor is violated at timeframe 0
+    gvSatSolver->addBoundedVerifyData(monitor, 0);
+    gvSatSolver->assumeProperty(monitor, false, 0);
+    gvSatSolver->simplify();
+    if(gvSatSolver->assump_solve()){
+        pRes.setFired(0);
+        return;
+    }
+    gvSatSolver->assertProperty(monitor, true, 0);
+
+    //    Build the whole timeframe 0 and map the var to latch net
+    // for(int j = 0; j < _cirMgr->getNumLATCHs(); ++j){
+    //     gvSatSolver->addBoundedVerifyData(_cirMgr->getRo(j), i);
+    //     mapVar2Net(gvSatSolver->getVerifyData(_cirMgr->getRo(j), i), _cirMgr->getRo(j));
+    // }
+
+    // i = i + 1;
+    for(int j = 0; j < _cirMgr->getNumLATCHs(); ++j){
+        gvSatSolver->addBoundedVerifyData(_cirMgr->getRo(j), 1);
+        mapVar2Net(gvSatSolver->getVerifyData(_cirMgr->getRo(j), 1), _cirMgr->getRo(j));
+    }
+    num_clauses = getNumClauses();
+
+    //    Mark the added clauses ( up to now ) to onset
+    for(int j = 0; j < getNumClauses(); ++j){
+        markOnsetClause(j);
+    }
+    num_clauses = getNumClauses();
+
+    // for(int j = 0; j < _cirMgr->getNumLATCHs(); ++j){
+    //     gvSatSolver->addBoundedVerifyData(_cirMgr->getRo(j), i);
+    //     mapVar2Net(gvSatSolver->getVerifyData(_cirMgr->getRo(j), i), _cirMgr->getRo(j));
+    // }
+    // num_clauses = getNumClauses();
+
+
+
+    // cout << "2" << endl;
     // PART III:
     // Start the ITP verification loop
     // Perform BMC
@@ -128,6 +168,86 @@ void SATMgr::itpUbmc(const CirGate *monitor, SatProofRes &pRes) {
     //    Each time the clauses are added to the solver,
     //    mark them to onset/offset carefully
     //    ( ex. addedBoundedVerifyData(), assertProperty() are called )
+
+    uint32_t i = 1;
+    for( ; i < pRes.getMaxDepth(); ++i){
+        // BMC
+        gvSatSolver->addBoundedVerifyData(monitor, i);
+        gvSatSolver->assumeRelease();
+        gvSatSolver->assumeProperty(monitor, false, i);
+        gvSatSolver->assumeProperty(I, false, 0);
+        gvSatSolver->simplify();
+        if(gvSatSolver->assump_solve()){
+            pRes.setFired(i);
+            return;
+        }
+        // mark the off set
+        for(int j = num_clauses; j < getNumClauses(); ++j){
+            markOffsetClause(j);
+        }
+        num_clauses = getNumClauses();
+        S = getItp();
+        unsigned num_tot = _cirMgr->getNumTots();
+        // R = _cirMgr->createOrGate(S, I);
+        R = I;
+        // _ptrMinisat->resizeNtkData(_cirMgr->getNumTots() - num_tot);
+        uint32_t k = 0;
+        for( ; k < pRes.getMaxDepth(); ++k){
+            gvSatSolver->assumeRelease();
+            gvSatSolver->addBoundedVerifyData(S, 0);
+            gvSatSolver->assumeProperty(S, false, 0);
+            for(int j = num_clauses; j < getNumClauses(); ++j){
+                markOnsetClause(j);
+            }
+            num_clauses = getNumClauses();
+            gvSatSolver->assumeProperty(monitor, false, i);
+            gvSatSolver->simplify();
+            if(gvSatSolver->assump_solve()){
+                gvSatSolver->assertProperty(monitor, true, i);
+                for(int j = num_clauses; j < getNumClauses(); ++j){
+                    markOffsetClause(j);
+                }
+                num_clauses = getNumClauses();
+                break;
+            }
+            
+            S = getItp();
+            num_tot = _cirMgr->getNumTots();
+            R_prime = _cirMgr->createOrGate(R, S);
+            tmp1 = _cirMgr->createXorGate(R_prime, R);
+            _ptrMinisat->resizeNtkData(_cirMgr->getNumTots() - num_tot);
+
+            num_clauses = getNumClauses();
+            gvSatSolver->addBoundedVerifyData(tmp1, 0);
+            gvSatSolver->assumeRelease();
+            gvSatSolver->assumeProperty(tmp1, false, 0);
+            gvSatSolver->simplify();
+            if(!gvSatSolver->assump_solve()){
+                proved = true;
+                pRes.setProved(k);
+                return;
+            }
+            
+            else{
+                for(int j = num_clauses; j < getNumClauses(); ++j){
+                    markOnsetClause(j);
+                }
+                num_clauses = getNumClauses();
+                R = R_prime;
+            }
+        }
+        if(proved){
+            // cout << "Proved!" << endl;
+            break;
+        }
+    }
+    
+
+    if(!proved){
+        pRes.setFired(pRes.getMaxDepth());
+        return;
+    }
+
 }
 
 void SATMgr::bind(GVSatSolver *ptrMinisat) {
@@ -395,8 +515,24 @@ void SATMgr::retrieveProof(Reader &rdr, vector<unsigned int> &clausePos, vector<
 CirGate *SATMgr::buildInitState() const {
     // TODO: build initial state
     CirAigGate *I;
-    
-    return I;
+
+    CirGate *nId0 = _cirMgr->_const0;
+    CirGate *nId1 = _cirMgr->_const1;
+    uint32_t netSize = _cirMgr->getNumTots();
+    // temperate variables
+    CirGate *nId2;
+    CirGate *nId3;
+    CirGate *nId4;
+    for(size_t i = 0; i < _cirMgr->getNumLATCHs(); ++i){
+        nId2 = _cirMgr->getRo(i);
+        nId2 = _cirMgr->createNotGate(nId2);
+        nId3 = _cirMgr->createAndGate(nId2, nId1);
+        nId1 = nId3;
+    }
+    // I = nId3;
+    _ptrMinisat->resizeNtkData(_cirMgr->getNumTots() - netSize);
+    // return I;
+    return nId1;
 }
 
 // build the McMillan Interpolant
