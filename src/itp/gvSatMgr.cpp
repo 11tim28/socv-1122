@@ -535,21 +535,7 @@ CirGate *SATMgr::buildInitState() const {
     return I;
 }
 
-// CirGate *SATMgr::buildInitState() const
-// {
-//     // TODO: build initial state
-//     unsigned numTotal = _cirMgr->getNumTots();
-//     CirGate *tmp;
-//     CirGate *output = _cirMgr->_const1;
-//     unsigned n = _cirMgr->getNumLATCHs();
-//     for (size_t i = 0; i < n; i++)
-//     {
-//         tmp = _cirMgr->createAndGate(output, _cirMgr->createNotGate(_cirMgr->getRo(i)));
-//         output = tmp;
-//     }
-//     _ptrMinisat->resizeNtkData(_cirMgr->getNumTots() - numTotal);
-//     return output;
-// }
+
 
 // build the McMillan Interpolant
 CirGate *SATMgr::buildItp(const string &proofName) const {
