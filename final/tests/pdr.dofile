@@ -1,0 +1,5 @@
+cirread -v ./final/src/fifteen_puzzle.v
+set sys vrf
+pdr -o 0
+usage
+quit -f
