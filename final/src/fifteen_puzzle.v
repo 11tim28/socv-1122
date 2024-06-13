@@ -421,8 +421,8 @@ always @(posedge clk) begin
 
 
         //  UNSAT case
-        state_r     <=  64'h123456789abfdec0;    
-        zero_pos_r  <=  4'd0;            
+        // state_r     <=  64'h123456789abfdec0;    
+        // zero_pos_r  <=  4'd0;            
     end
     else begin
         state_r     <=  state_w;
